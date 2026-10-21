@@ -201,7 +201,10 @@ var Data = (function () {
     ['peacock', 'peacock', /peacock/, /peacock/i, 'Peacock'],
     ['globoplay', 'globoplay', /globoplay/, /globoplay/i, 'Globoplay'],
     ['max', 'max', /hbo|wbd|\.max/, /^(hbo )?max$|hbo max/i, 'Max'],
-    ['apple tv', 'appletv', /appletv|apple\.tv/, /apple tv/i, 'Apple TV']
+    ['apple tv', 'appletv', /appletv|apple\.tv/, /apple tv/i, 'Apple TV'],
+    ['movistar', 'movistar', /movistar|yomvi/, /movistar/i, 'Movistar Plus+'],
+    ['dazn', 'dazn', /dazn/, /dazn/i, 'DAZN'],
+    ['3cat', '3cat', /3cat|ccma|tv3/, /3cat|tv3/i, '3Cat']
   ];
 
   var installed = [];   // the TV's apps, from TV.apps()
@@ -286,6 +289,8 @@ var Data = (function () {
       'Kids': 'Infantil', 'News': 'Notícias', 'Soap': 'Novela', 'Talk': 'Entrevistas'},
     es: {'Action & Adventure': 'Acción y Aventura', 'Sci-Fi & Fantasy': 'Ciencia ficción y Fantasía', 'War & Politics': 'Guerra y Política',
       'Kids': 'Infantil', 'News': 'Noticias', 'Soap': 'Telenovela', 'Talk': 'Entrevistas'},
+    ca: {'Action & Adventure': 'Acció i Aventura', 'Sci-Fi & Fantasy': 'Ciència-ficció i Fantasia', 'War & Politics': 'Guerra i Política',
+      'Kids': 'Infantil', 'News': 'Notícies', 'Soap': 'Telenovel·la', 'Talk': 'Entrevistes'},
     de: {'Action & Adventure': 'Action & Abenteuer', 'War & Politics': 'Krieg & Politik', 'Kids': 'Kinder', 'News': 'Nachrichten',
       'Soap': 'Seifenoper', 'Talk': 'Talkshow'}
   };
@@ -520,7 +525,7 @@ var Data = (function () {
       var d = new Date(at), h = d.getHours();
       if (I18N.lang === 'en') return (h % 12 || 12) + (h < 12 ? ' AM' : ' PM');
       if (I18N.lang === 'de') return (h < 10 ? '0' : '') + h + ' Uhr';
-      return (I18N.lang === 'es' || I18N.lang === 'ru') ? (h < 10 ? '0' : '') + h + ':00' : h + 'h';
+      return (I18N.lang === 'es' || I18N.lang === 'ca' || I18N.lang === 'ru') ? (h < 10 ? '0' : '') + h + ':00' : h + 'h';
     },
     time: function (at) {
       var d = new Date(at), h = d.getHours(), m = d.getMinutes();

@@ -357,6 +357,18 @@ final class HomeData {
             if (code >= 95) return "Гроза";
             return "Дождь";
         }
+        if (Ui.ca) {
+            if (code == 0) return day ? "Serè" : "Nit serena";
+            if (code == 1) return "Majoritàriament serè";
+            if (code == 2) return "Parcialment ennuvolat";
+            if (code == 3) return "Ennuvolat";
+            if (code == 45 || code == 48) return "Boira";
+            if (code >= 51 && code <= 57) return "Plugim";
+            if (code == 65 || code == 67 || code == 82) return "Pluja forta";
+            if (code >= 71 && code <= 77 || code == 85 || code == 86) return "Neu";
+            if (code >= 95) return "Tempesta";
+            return "Pluja";
+        }
         if (Ui.es) {
             if (code == 0) return day ? "Despejado" : "Noche despejada";
             if (code == 1) return "Mayormente despejado";
@@ -425,7 +437,7 @@ final class HomeData {
 
     static String hour(long at) {
         return Ui.once("hour", at, () -> Ui.en ? new SimpleDateFormat("h a", Locale.US).format(new java.util.Date(at))
-                : new SimpleDateFormat(Ui.es || Ui.ru ? "HH:mm" : Ui.de ? "HH 'Uhr'" : "HH'h'", Ui.locale()).format(new java.util.Date(at)));
+                : new SimpleDateFormat(Ui.es || Ui.ca || Ui.ru ? "HH:mm" : Ui.de ? "HH 'Uhr'" : "HH'h'", Ui.locale()).format(new java.util.Date(at)));
     }
 
     /** How long ago the data was fetched, if it's stale (no internet): "12 min ago". */
@@ -436,6 +448,7 @@ final class HomeData {
         long minutes = age / 60_000;
         if (Ui.en) return minutes < 60 ? minutes + " min ago" : (minutes / 60) + " h ago";
         if (Ui.ru) return minutes < 60 ? minutes + " мин назад" : (minutes / 60) + " ч назад";
+        if (Ui.ca) return minutes < 60 ? "fa " + minutes + " min" : "fa " + (minutes / 60) + " h";
         if (Ui.es) return minutes < 60 ? "hace " + minutes + " min" : "hace " + (minutes / 60) + " h";
         if (Ui.de) return minutes < 60 ? "vor " + minutes + " Min." : "vor " + (minutes / 60) + " Std.";
         return minutes < 60 ? "há " + minutes + " min" : "há " + (minutes / 60) + " h";

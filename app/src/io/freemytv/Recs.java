@@ -59,6 +59,7 @@ final class Recs {
     static final String[] PERIOD_LABEL_RU = {"ЭТИМ УТРОМ", "СЕГОДНЯ ДНЁМ", "СЕГОДНЯ ВЕЧЕРОМ"};
     static final String[] PERIOD_LABEL_EN = {"THIS MORNING", "THIS AFTERNOON", "TONIGHT"};
     static final String[] PERIOD_LABEL_ES = {"PARA ESTA MAÑANA", "PARA ESTA TARDE", "PARA ESTA NOCHE"};
+    static final String[] PERIOD_LABEL_CA = {"PER A AQUEST MATÍ", "PER A AQUESTA TARDA", "PER A AQUESTA NIT"};
     static final String[] PERIOD_LABEL_DE = {"HEUTE MORGEN", "HEUTE NACHMITTAG", "HEUTE ABEND"};
     /** Service name on TMDB (part of the name, lowercase) → TV app (HomeApps key, package). */
     private static final String[][] SERVICES = {
@@ -71,6 +72,12 @@ final class Recs {
         {"globoplay", "globoplay", "com.globo.globotv"},
         {"max", "max", "com.wbd.stream"},
         {"apple tv", "appletv", "com.apple.atve.androidtv.appletv"},
+        // Spain and Catalonia. Several packages per service (first one installed wins): TV builds can differ from the phone app's.
+        {"movistar", "movistar", "es.plus.yomvi.androidtv"},
+        {"movistar", "movistar", "es.plus.yomvi"},
+        {"dazn", "dazn", "com.dazn"},
+        {"3cat", "3cat", "cat.ccma.tv3.androidtv"},
+        {"3cat", "3cat", "cat.ccma.tv3"},
     };
     private static final Map<String, String> SERVICE_NAME = new HashMap<>();
     static {
@@ -83,6 +90,9 @@ final class Recs {
         SERVICE_NAME.put("globoplay", "Globoplay");
         SERVICE_NAME.put("max", "Max");
         SERVICE_NAME.put("appletv", "Apple TV");
+        SERVICE_NAME.put("movistar", "Movistar Plus+");
+        SERVICE_NAME.put("dazn", "DAZN");
+        SERVICE_NAME.put("3cat", "3Cat");
     }
     /** Country for "what streams where" (config.properties "tmdb_region", e.g. US, GB, BR). */
     private static final String REGION = Config.TMDB_REGION.trim().toUpperCase(Locale.ROOT);
@@ -154,7 +164,7 @@ final class Recs {
     String error() { return error; }
 
     static String periodLabel() {
-        return (Ui.ru ? PERIOD_LABEL_RU : Ui.es ? PERIOD_LABEL_ES : Ui.de ? PERIOD_LABEL_DE : Ui.en ? PERIOD_LABEL_EN : PERIOD_LABEL)
+        return (Ui.ru ? PERIOD_LABEL_RU : Ui.ca ? PERIOD_LABEL_CA : Ui.es ? PERIOD_LABEL_ES : Ui.de ? PERIOD_LABEL_DE : Ui.en ? PERIOD_LABEL_EN : PERIOD_LABEL)
                 [period(System.currentTimeMillis())];
     }
 
@@ -424,6 +434,7 @@ final class Recs {
     /** Language of titles and genres; the services come from the region. */
     private static String lang() {
         if (Ui.ru) return "ru-RU";
+        if (Ui.ca) return "ca-ES";
         if (Ui.es) return "ES".equals(java.util.Locale.getDefault().getCountry()) ? "es-ES" : "es-MX";
         if (Ui.de) return "de-DE";   // TMDB's de-AT and de-CH have few translations of their own
         return Ui.en ? "en-US" : "pt-BR";
@@ -478,6 +489,7 @@ final class Recs {
             if (seasons > 0 && Ui.ru) parts.add(Russian.count(seasons, "сезон", "сезона", "сезонов"));
             else if (seasons > 0 && Ui.en) parts.add(seasons == 1 ? "1 season" : seasons + " seasons");
             else if (seasons > 0 && Ui.de) parts.add(seasons == 1 ? "1 Staffel" : seasons + " Staffeln");
+            else if (seasons > 0 && Ui.ca) parts.add(seasons == 1 ? "1 temporada" : seasons + " temporades");
             else if (seasons > 0) parts.add(seasons == 1 ? "1 temporada" : seasons + " temporadas");
         }
         JSONObject wp = o.optJSONObject("watch/providers");
@@ -524,6 +536,11 @@ final class Recs {
         {"War & Politics", "Guerra y Política"}, {"Kids", "Infantil"}, {"News", "Noticias"},
         {"Soap", "Telenovela"}, {"Talk", "Entrevistas"},
     };
+    private static final String[][] GENRES_CA = {
+        {"Action & Adventure", "Acció i Aventura"}, {"Sci-Fi & Fantasy", "Ciència-ficció i Fantasia"},
+        {"War & Politics", "Guerra i Política"}, {"Kids", "Infantil"}, {"News", "Notícies"}, {"Soap", "Telenovel·la"},
+        {"Talk", "Entrevistes"},
+    };
     private static final String[][] GENRES_DE = {
         {"Action & Adventure", "Action & Abenteuer"}, {"War & Politics", "Krieg & Politik"}, {"Kids", "Kinder"},
         {"News", "Nachrichten"}, {"Soap", "Seifenoper"}, {"Talk", "Talkshow"},
@@ -531,7 +548,7 @@ final class Recs {
 
     private static String genre(String name) {
         if (Ui.ru) return Russian.text(name);
-        for (String[] g : Ui.es ? GENRES_ES : Ui.de ? GENRES_DE : GENRES_PT) if (g[0].equalsIgnoreCase(name)) return g[1];
+        for (String[] g : Ui.ca ? GENRES_CA : Ui.es ? GENRES_ES : Ui.de ? GENRES_DE : GENRES_PT) if (g[0].equalsIgnoreCase(name)) return g[1];
         return name;
     }
 
@@ -557,12 +574,16 @@ final class Recs {
         return best;
     }
 
-    private static String[] service(String name) {
+    /** The app for a TMDB service name: the installed package when a service lists several, else the first. */
+    private String[] service(String name) {
         String n = name.toLowerCase(Locale.ROOT);
+        String[] first = null;
         for (String[] s : SERVICES) {
-            if (s[0].equals("max") ? n.matches(".*\\bmax\\b.*") : n.contains(s[0])) return s;
+            if (!(s[0].equals("max") ? n.matches(".*\\bmax\\b.*") : n.contains(s[0]))) continue;
+            if (installed(s[2])) return s;
+            if (first == null) first = s;
         }
-        return null;
+        return first;
     }
 
     private boolean installed(String pkg) {
