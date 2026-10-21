@@ -400,6 +400,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             cardRects[i] = new RectF();
         }
         makeLightButtons();
+        updateTabKinds();
         recs.setLight(true);
         checkNight(false);
         sheetLayer.setVisibility(INVISIBLE);
