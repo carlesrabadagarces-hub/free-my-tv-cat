@@ -524,3 +524,40 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* The Magic Remote's pointer: no text selection, no outlines. */
 * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+/* MARK: - Weather card: the sky it shows, with a temperature curve and the sun's path */
+
+#weather.wx { color: #FFFFFF; }
+#weather.wx-sun { background: -webkit-linear-gradient(top left, #62B8FF, #2B76E0); background: linear-gradient(160deg, #62B8FF, #2B76E0); }
+#weather.wx-night { background: -webkit-linear-gradient(top left, #26376E, #0A1030); background: linear-gradient(160deg, #26376E, #0A1030); }
+#weather.wx-cloud { background: -webkit-linear-gradient(top left, #93A7BC, #5C7088); background: linear-gradient(160deg, #93A7BC, #5C7088); }
+#weather.wx-rain { background: -webkit-linear-gradient(top left, #566A84, #263349); background: linear-gradient(160deg, #566A84, #263349); }
+#weather.wx-snow { background: -webkit-linear-gradient(top left, #B4CCE4, #7596B8); background: linear-gradient(160deg, #B4CCE4, #7596B8); }
+#weather.wx-storm { background: -webkit-linear-gradient(top left, #433C69, #130F26); background: linear-gradient(160deg, #433C69, #130F26); }
+#weather.wx-fog { background: -webkit-linear-gradient(top left, #A9B0B9, #77808B); background: linear-gradient(160deg, #A9B0B9, #77808B); }
+#weather .glow { position: absolute; left: -90px; top: -120px; width: 480px; height: 480px; border-radius: 240px; background: -webkit-radial-gradient(center, rgba(255, 233, 160, 0.55), rgba(255, 233, 160, 0) 68%); background: radial-gradient(circle, rgba(255, 233, 160, 0.55), rgba(255, 233, 160, 0) 68%); opacity: 0; }
+#weather.wx-sun .glow { opacity: 1; }
+#weather.wx-night .glow { opacity: 0.5; background: -webkit-radial-gradient(center, rgba(150, 175, 255, 0.5), rgba(150, 175, 255, 0) 68%); background: radial-gradient(circle, rgba(150, 175, 255, 0.5), rgba(150, 175, 255, 0) 68%); }
+#weather.wx .head, #weather.wx .range, #weather.wx .sunl, #weather.wx .sunr { color: rgba(255, 255, 255, 0.82); }
+#weather.wx .now { top: 70px; }
+#weather.wx .now .sym { width: 84px; height: 84px; vertical-align: 6px; margin-right: 14px; }
+#weather.wx .now .temp { font-size: 116px; line-height: 104px; font-weight: 200; }
+#weather.wx .cond { top: 196px; font-size: 31px; font-weight: 600; }
+#weather.wx .range { top: 244px; }
+#weather.wx .split { background: rgba(255, 255, 255, 0.22); }
+#weather .curve { position: absolute; top: 70px; }
+#weather .curve .line { stroke: rgba(255, 255, 255, 0.55); }
+#weather .curve .dot { fill: #FFFFFF; }
+#weather .hd { font-size: 27px; font-weight: 600; color: #FFFFFF; }
+#weather .hb { top: 176px; }
+#weather .hb .t { font-size: 20px; font-weight: 500; color: rgba(255, 255, 255, 0.78); margin-top: 4px; }
+#weather .hb .sym { display: block; width: 26px; height: 26px; margin: 0 auto; color: #FFFFFF; }
+#weather .arc { position: absolute; top: 244px; }
+#weather .arc .track { stroke: rgba(255, 255, 255, 0.55); }
+#weather .arc .sundot { fill: #FFE27A; }
+#weather .arc .sundot.off { fill: rgba(255, 255, 255, 0.4); }
+#weather .sunl, #weather .sunr { position: absolute; top: 258px; width: 120px; font-size: 22px; font-weight: 600; font-feature-settings: 'tnum'; white-space: nowrap; }
+#weather .sunl { left: 422px; }
+#weather .sunr { right: 30px; text-align: right; }
+#weather .sunl .sym, #weather .sunr .sym { width: 22px; height: 22px; vertical-align: -4px; margin: 0 8px 0 0; }
+#weather .sunr .sym { margin: 0 0 0 8px; }

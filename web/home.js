@@ -371,13 +371,33 @@
     }
   }
 
+  /** The card's look: the sky it shows (sun, night, cloud, rain, snow, storm, fog). */
+  function wxKind(code, isDay) {
+    if (code >= 95) return 'storm';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if (code >= 51) return 'rain';
+    if (code === 45 || code === 48) return 'fog';
+    if (code >= 2) return 'cloud';
+    return isDay ? 'sun' : 'night';
+  }
+
+  function svgEl(tag, attrs, parent) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
   function renderWeather(card) {
-    el('div', 'head', card, Data.city || tr('Clima', 'Weather', 'Clima'));
     var w = Data.weather;
+    if (w) setClass(card, 'wx wx-' + wxKind(w.code, w.isDay), true);
+    el('div', 'glow', card);
+    el('div', 'head', card, Data.city || tr('Clima', 'Weather', 'Clima'));
     if (!w) {
       el('div', 'cond', card, tr('Sem dados do clima agora.', 'No weather data right now.', 'No hay datos del clima ahora.')).style.top = '96px';
       return;
     }
+    var W = parseFloat(card.style.width), L = 422, R = W - 30;
     var now = el('div', 'now', card);
     sym(Data.symbol(w.code, w.isDay), now);
     el('span', 'temp', now, Data.degrees(w.temp));
@@ -385,18 +405,45 @@
     el('div', 'range', card, I18N.lang === 'ru' ? 'Макс. ' + Data.degrees(w.max) + '   Мин. ' + Data.degrees(w.min) : tr('Máx. ' + Data.degrees(w.max) + '   Mín. ' + Data.degrees(w.min), 'H:' + Data.degrees(w.max) + '   L:' + Data.degrees(w.min),
         'Máx. ' + Data.degrees(w.max) + '   Mín. ' + Data.degrees(w.min)));
     el('div', 'split', card);
-    var hours = el('div', 'hours', card), width = parseFloat(card.style.width) - 30 - 422, hw = width / 6;
-    for (var i = 0; i < w.hours.length && i < 6; i++) {
-      var h = el('div', 'hour', hours), x = w.hours[i];
-      h.style.left = (hw * i) + 'px';
-      h.style.width = hw + 'px';
-      el('div', 't', h, Data.hour(x.at));
-      sym(Data.symbol(x.code, x.day), h);
-      el('div', 'd', h, Data.degrees(x.temp));
+
+    // The next hours as a temperature curve: a dot per hour, higher when warmer, and the hour under it.
+    var n = Math.min(w.hours.length, 6), hw = (R - L) / 6, lo = 1e9, hi = -1e9, i, pts = [];
+    for (i = 0; i < n; i++) { lo = Math.min(lo, w.hours[i].temp); hi = Math.max(hi, w.hours[i].temp); }
+    var span = Math.max(hi - lo, 1);
+    var svg = svgEl('svg', {'class': 'curve', width: R - L, height: 130, viewBox: '0 0 ' + (R - L) + ' 130'}, card);
+    svg.style.left = L + 'px';
+    for (i = 0; i < n; i++) pts.push([hw * (i + 0.5), 96 - ((w.hours[i].temp - lo) / span) * 40]);
+    if (n > 1) {
+      var d = 'M' + pts[0][0] + ' ' + pts[0][1];
+      for (i = 1; i < n; i++) d += ' L' + pts[i][0] + ' ' + pts[i][1];
+      svgEl('path', {d: d, 'class': 'line', fill: 'none', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}, svg);
     }
-    var sun = el('div', 'sun', card);
-    if (w.sunrise) { var a = el('span', '', sun); sym('sunrise', a); a.appendChild(document.createTextNode(tr('Nascer ', 'Sunrise ', 'Amanecer ') + Data.time(w.sunrise))); }
-    if (w.sunset) { var b = el('span', '', sun); sym('sunset', b); b.appendChild(document.createTextNode(tr('Pôr do sol ', 'Sunset ', 'Atardecer ') + Data.time(w.sunset))); }
+    for (i = 0; i < n; i++) svgEl('circle', {cx: pts[i][0], cy: pts[i][1], r: 7, 'class': 'dot'}, svg);
+    for (i = 0; i < n; i++) {
+      var x = w.hours[i], hd = el('div', 'hour hd', card, Data.degrees(x.temp)), hb = el('div', 'hour hb', card);
+      hd.style.left = hb.style.left = (L + hw * i) + 'px';
+      hd.style.width = hb.style.width = hw + 'px';
+      hd.style.top = (70 + pts[i][1] - 50) + 'px';
+      sym(Data.symbol(x.code, x.day), hb);
+      el('div', 't', hb, Data.hour(x.at));
+    }
+
+    // Sunrise, the sun's path across the day, sunset.
+    if (w.sunrise && w.sunset) {
+      var a = el('div', 'sunl', card);
+      sym('sunrise', a);
+      a.appendChild(document.createTextNode(Data.time(w.sunrise)));
+      var b = el('div', 'sunr', card);
+      b.appendChild(document.createTextNode(Data.time(w.sunset)));
+      sym('sunset', b);
+      var aw = R - L - 250, arc = svgEl('svg', {'class': 'arc', width: aw, height: 50, viewBox: '0 0 ' + aw + ' 50'}, card);
+      arc.style.left = (L + 125) + 'px';
+      svgEl('path', {d: 'M6 46 Q' + (aw / 2) + ' -14 ' + (aw - 6) + ' 46', 'class': 'track', fill: 'none', 'stroke-width': 3, 'stroke-dasharray': '2 8', 'stroke-linecap': 'round'}, arc);
+      var t = Math.max(0, Math.min(1, (Date.now() - w.sunrise) / (w.sunset - w.sunrise)));
+      var sx = (1 - t) * (1 - t) * 6 + 2 * (1 - t) * t * (aw / 2) + t * t * (aw - 6);
+      var sy = (1 - t) * (1 - t) * 46 + 2 * (1 - t) * t * -14 + t * t * 46;
+      svgEl('circle', {cx: sx, cy: sy, r: 9, 'class': 'sundot' + (w.isDay ? '' : ' off')}, arc);
+    }
   }
 
   function renderPrices(card, coins) {
