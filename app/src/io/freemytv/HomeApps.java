@@ -85,16 +85,16 @@ final class HomeApps {
         {"disney", "Disney+", "com.disney.disneyplus", "1838C8", "", "1"},
         {"max", "Max", "com.wbd.stream", "6C3BE0", "", "1.32"},
         {"appletv", "Apple TV", "com.apple.atve.androidtv.appletv", "B8BCC6", "", "1.1"},
-        {"hulu", "Hulu", "com.hulu.livingroomplus", "1CE783", "", "1"},
-        {"paramount", "Paramount+", "com.cbs.ott", "0064FF", "", "1"},
-        {"peacock", "Peacock", "com.peacocktv.peacockandroid", "6E55DC", "", "1"},
-        {"globoplay", "Globoplay", "com.globo.globotv", "FF5A1F", "tint", "1"},
         // Spain and Catalonia (one row per candidate package, same key: whichever is installed shows up).
         {"3cat", "3Cat", "cat.ccma.tv3.androidtv", "E4002B", "tint", "1"},
         {"3cat", "3Cat", "cat.ccma.tv3", "E4002B", "tint", "1"},
         {"movistar", "Movistar Plus+", "es.plus.yomvi.androidtv", "019DF4", "tint", "1"},
         {"movistar", "Movistar Plus+", "es.plus.yomvi", "019DF4", "tint", "1"},
         {"dazn", "DAZN", "com.dazn", "F8F8F5", "", "1"},
+        {"hulu", "Hulu", "com.hulu.livingroomplus", "1CE783", "", "1"},
+        {"paramount", "Paramount+", "com.cbs.ott", "0064FF", "", "1"},
+        {"peacock", "Peacock", "com.peacocktv.peacockandroid", "6E55DC", "", "1"},
+        {"globoplay", "Globoplay", "com.globo.globotv", "FF5A1F", "tint", "1"},
         {"spotify", "Spotify", "com.spotify.tv.android", "1DB954", "", "1"},
     };
     static final int MAX_SHELF = 8;

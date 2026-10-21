@@ -81,6 +81,11 @@ def files(config, made_by):
         if name.endswith('.png') or name.startswith('LICENSE'):
             with open(os.path.join(symbols, name), 'rb') as f:
                 out['symbols/' + name] = f.read()
+    logos = os.path.join(ROOT, 'app', 'assets', 'logos')
+    if os.path.isdir(logos):
+        for name in sorted(os.listdir(logos)):
+            with open(os.path.join(logos, name), 'rb') as f:
+                out['logos/' + name] = f.read()
     for name in ('InterVariable.ttf', 'OFL.txt'):
         with open(os.path.join(ROOT, 'app', 'assets', 'fonts', name), 'rb') as f:
             out['fonts/' + name] = f.read()

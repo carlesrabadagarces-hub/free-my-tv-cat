@@ -561,3 +561,15 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #weather .sunr { right: 30px; text-align: right; }
 #weather .sunl .sym, #weather .sunr .sym { width: 22px; height: 22px; vertical-align: -4px; margin: 0 8px 0 0; }
 #weather .sunr .sym { margin: 0 0 0 8px; }
+
+/* MARK: - News tab: photo cards with the headline over a shade, the outlet's mark and the time */
+
+.card.news .img { background-color: #1C1C1E; }
+.card.news .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 70%; background: -webkit-linear-gradient(top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.82)); background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.82)); }
+.card.news .chip { position: absolute; left: 22px; top: 22px; height: 44px; padding: 0 20px 0 10px; border-radius: 22px; background: rgba(0, 0, 0, 0.52); color: #FFFFFF; font-size: 21px; font-weight: 600; line-height: 44px; white-space: nowrap; }
+.card.news .chip img { width: 26px; height: 26px; vertical-align: -6px; margin-right: 10px; }
+.card.news .headline { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; position: absolute; left: 26px; right: 26px; bottom: 74px; font-size: 38px; font-weight: 700; line-height: 1.18; color: #FFFFFF; overflow: hidden; }
+.card.news .lead { position: absolute; left: 26px; right: 26px; bottom: 26px; font-size: 22px; font-weight: 500; color: rgba(255, 255, 255, 0.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.news .when { position: absolute; right: 22px; top: 22px; height: 44px; padding: 0 18px; border-radius: 22px; background: rgba(0, 0, 0, 0.52); font-size: 20px; font-weight: 600; line-height: 44px; color: #FFFFFF; white-space: nowrap; }
+
+.card.news:not(:first-child) .headline { bottom: 60px; }

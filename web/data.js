@@ -468,6 +468,68 @@ var Data = (function () {
     try { return v.toLocaleString(I18N.locale(), {minimumFractionDigits: digits, maximumFractionDigits: digits}); } catch (e) { return v.toFixed(digits); }
   }
 
+  // MARK: - Local news: 3Cat info's territorial desks (RSS), by the zone of the configured city
+
+  /** 3Cat info's desks: name, collection id in api.3cat.cat, and the desk's centre. */
+  var DESKS = [
+    ['Barcelona', 24790, 41.39, 2.17], ['Tarragona', 24791, 41.12, 1.25], ['Girona', 24792, 41.98, 2.82],
+    ['Catalunya Central', 24793, 41.73, 1.83], ['Terres de l\'Ebre', 24794, 40.81, 0.52], ['Ponent', 24795, 41.62, 0.62],
+    ['Alt Pirineu', 24796, 42.35, 1.45], ['Aran', 24797, 42.70, 0.79], ['Penedès', 29010, 41.35, 1.70]
+  ];
+  var NEWS_URL = 'https://api.3cat.cat/noticies?_format=rss&origen=colleccio&items_pagina=12&sdom=img&version=2.0&cache=90&https=true&master=yes&perfils_extra=imatges_3catinfo&id=';
+  var NEWS_ALL = 'https://api.3cat.cat/noticies?_format=rss&origen=frontal&frontal=n324-portada-noticia&items_pagina=12&sdom=img&version=2.0&https=true&master=yes&perfils_extra=imatges_3catinfo';
+  var news = [], newsAt = 0, fetchingNews = false, newsPlace = '';
+
+  /** The desk closest to the city (within 90 km), else Catalonia's front page when the language is Catalan; else null. */
+  function newsZone() {
+    var lat = parseFloat(Place.lat), lon = parseFloat(Place.lon), best = null, bestD = 1e9;
+    for (var i = 0; i < DESKS.length; i++) {
+      var dy = (DESKS[i][2] - lat) * 111, dx = (DESKS[i][3] - lon) * 111 * Math.cos(lat * Math.PI / 180), d = Math.sqrt(dx * dx + dy * dy);
+      if (d < bestD) { bestD = d; best = DESKS[i]; }
+    }
+    if (best && bestD <= 90) return {name: best[0], url: NEWS_URL + best[1]};
+    return I18N.lang === 'ca' ? {name: 'Catalunya', url: NEWS_ALL} : null;
+  }
+
+  (function () {
+    var n = stored('news');
+    if (n && n.items) { news = n.items; newsAt = n.at; newsPlace = n.place; }
+  })();
+
+  function parseNews(xml) {
+    var items = xml.getElementsByTagName('item'), out = [];
+    for (var i = 0; i < items.length && out.length < 12; i++) {
+      var it = items[i], title = (it.getElementsByTagName('title')[0] || {}).textContent || '';
+      var desc = (it.getElementsByTagName('description')[0] || {}).textContent || '';
+      var img = /<img[^>]+src=['"]([^'"]+)['"]/i.exec(desc), p = /<p>([\s\S]*?)<\/p>/i.exec(desc);
+      var date = Date.parse((it.getElementsByTagName('pubDate')[0] || {}).textContent || '');
+      if (!title || !img) continue;
+      out.push({title: title, image: img[1], lead: p ? p[1].replace(/<[^>]+>/g, '') : '', at: isNaN(date) ? 0 : date,
+        link: (it.getElementsByTagName('link')[0] || {}).textContent || ''});
+    }
+    return out;
+  }
+
+  function refreshNews() {
+    var z = newsZone(), now = Date.now();
+    if (!z || fetchingNews || (newsPlace === z.name && now - newsAt < 15 * 60000 && now >= newsAt)) return;
+    fetchingNews = true;
+    var x = new XMLHttpRequest();
+    x.open('GET', z.url, true);
+    x.timeout = 10000;
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      fetchingNews = false;
+      var items = x.status === 200 && x.responseXML ? parseNews(x.responseXML) : [];
+      if (!items.length) return;
+      news = items; newsAt = Date.now(); newsPlace = z.name;
+      store('news', {items: news, at: newsAt, place: newsPlace});
+      changed();
+    };
+    x.ontimeout = x.onerror = function () { fetchingNews = false; };
+    x.send();
+  }
+
   var SYMBOLS = {USD: '$', BRL: 'R$ ', EUR: '€', GBP: '£', JPY: '¥'};
 
   return {
@@ -477,8 +539,11 @@ var Data = (function () {
     onChange: function (fn) { listeners.push(fn); },
     setApps: function (apps) { installed = apps; },
     appFor: appFor,
-    refresh: function () { refreshWeather(); refreshPrices(); refreshRecs(); },
+    refresh: function () { refreshWeather(); refreshPrices(); refreshRecs(); refreshNews(); },
     settingsChanged: function () { pricesAt = 0; refreshPrices(); changed(); },
+    /** Local news (3Cat info) for the city's desk: the desk's name and the stories, or null outside Catalonia. */
+    newsZone: newsZone,
+    get news() { var z = newsZone(); return z && newsPlace === z.name ? news : []; },
     get weather() { return weather; },
     get weatherAt() { return weatherAt; },
     prices: prices,

@@ -68,13 +68,13 @@
     ['disney', /disney/, /disney/i, ['#173584', '#08143F']],
     ['max', /hbo|wbd/, /^(hbo )?max$|hbo max/i, ['#5C30E8', '#221684']],
     ['appletv', /appletv|apple\.tv/, /apple tv/i, ['#1C1C1E', '#000000']],
+    ['3cat', /3cat|ccma|tv3/, /3cat|tv3/i, ['#26262B', '#0B0B0D']],
+    ['movistar', /movistar|yomvi/, /movistar/i, ['#019DF4', '#014F8F']],
+    ['dazn', /dazn/, /dazn/i, ['#1C1C1E', '#000000']],
     ['hulu', /^hulu/, /hulu/i, ['#1CE783', '#0B8F4E']],
     ['paramount', /paramount|cbs/, /paramount/i, ['#0064FF', '#002A86']],
     ['peacock', /peacock/, /peacock/i, ['#1C1C1E', '#000000']],
     ['globoplay', /globoplay/, /globoplay/i, ['#FF8A1F', '#FF2D5A']],
-    ['3cat', /3cat|ccma|tv3/, /3cat|tv3/i, ['#E4002B', '#7A0017']],
-    ['movistar', /movistar|yomvi/, /movistar/i, ['#019DF4', '#014F8F']],
-    ['dazn', /dazn/, /dazn/i, ['#1C1C1E', '#000000']],
     ['spotify', /spotify/, /spotify/i, ['#1DB954', '#0F7A36']]
   ];
   var MAX_SHELF = 8;
@@ -96,6 +96,9 @@
     return Math.max(18, Math.min(max, Math.floor(width * 0.8 / (Math.max(4, title.length) * 0.56))));
   }
 
+  /** The official marks that ship with the app, for these services when the TV gives no icon (white ones sit on the dark tile). */
+  var OWN_LOGO = {'3cat': '3cat', movistar: 'movistar-dark', dazn: 'dazn-dark'};
+
   /** An app's face: its own icon on its brand color (or its name, when the icon can't be read). */
   function face(app, box, wordSize) {
     var k = shelfKey(app);
@@ -105,11 +108,12 @@
     box.style.background = 'linear-gradient(' + top + ', ' + bottom + ')';
     var word = el('div', 'word', box, app.title);
     if (wordSize) word.style.fontSize = wordSize + 'px';
-    if (app.icon) {
+    var icon = app.icon || (k && OWN_LOGO[k[0]] ? 'logos/' + OWN_LOGO[k[0]] + '.png' : '');
+    if (icon) {
       var img = el('img', '', box);
       word.style.visibility = 'hidden';
       img.onerror = function () { img.parentNode.removeChild(img); word.style.visibility = ''; };
-      img.src = app.icon;
+      img.src = icon;
     }
   }
 
@@ -149,8 +153,8 @@
       setClass(list[i], 'focus', st.zone === Z.TOP && st.top === i);
     }
     list = $('buttons').children;
-    for (i = 0; i < list.length; i++) setClass(list[i], 'focus', st.zone === Z.TOP && st.top === 3 + i);
-    setClass($('quotes'), 'hide', st.zone === Z.TOP && st.top >= 3);
+    for (i = 0; i < list.length; i++) setClass(list[i], 'focus', st.zone === Z.TOP && st.top === tabCount() + i);
+    setClass($('quotes'), 'hide', st.zone === Z.TOP && st.top >= tabCount());
     list = $('cards').children;
     for (i = 0; i < list.length; i++) setClass(list[i], 'focus', st.zone === Z.CARDS && st.card === i);
     list = $('tiles').children;
@@ -192,14 +196,18 @@
 
   // MARK: - Top: title, tabs, buttons, quotes
 
-  var TAB_KIND = [null, 'movie', 'tv'];
+  var TAB_KIND = [null, 'movie', 'tv', 'news'];
+
+  /** Explore, Movies, Shows, and local News where there is a 3Cat info desk for the city. */
+  function tabCount() { return Data.newsZone() ? 4 : 3; }
 
   function renderTop() {
     $('title').textContent = tr('Para você', 'For You', 'Para ti');
     var tabs = $('tabs');
     tabs.innerHTML = '';
     var names = [tr('Explorar', 'Explore', 'Explorar'), tr('Filmes', 'Movies', 'Películas'), tr('Séries', 'Shows', 'Series')];
-    for (var i = 0; i < 3; i++) {
+    if (tabCount() === 4) names.push(tr('Notícies', 'News', 'Noticias'));
+    for (var i = 0; i < tabCount(); i++) {
       var t = el('button', 'tab', tabs, names[i]);
       hover(t, Z.TOP, i);
     }
@@ -212,7 +220,7 @@
       r.style.left = (1596 + 88 * b) + 'px';
       sym(defs[b][0], r);
       el('div', 'tip', r, defs[b][1]);
-      hover(r, Z.TOP, 3 + b);
+      hover(r, Z.TOP, tabCount() + b);
     }
   }
 
@@ -229,6 +237,8 @@
   // MARK: - Picks and background
 
   function renderCards() {
+    if (st.tab >= tabCount()) st.tab = 0;
+    if (TAB_KIND[st.tab] === 'news') { renderNews(); return; }
     var list = Data.picks(TAB_KIND[st.tab]);
     var holder = $('cards');
     setClass(body, 'no-picks', !list.length);
@@ -251,6 +261,43 @@
     st.card = Math.min(st.card, Math.max(0, list.length - 1));
     if (!list.length && st.zone === Z.CARDS) st.zone = Z.SHELF;
     backdrop(list.length ? Data.image(list[0].backdrop, 'w300') : '');
+    updateFocus();
+  }
+
+  // MARK: - Local news: big photos from 3Cat info's desk for the zone
+
+  function ago(at) {
+    var m = Math.max(1, Math.round((Date.now() - at) / 60000)), t = m < 60 ? m + ' min' : Math.min(99, Math.round(m / 60)) + ' h';
+    return tr('há ' + t, t + ' ago', 'hace ' + t);
+  }
+
+  function renderNews() {
+    var list = Data.news.slice(0, 3), holder = $('cards'), z = Data.newsZone();
+    setClass(body, 'no-picks', !list.length);
+    cards = list;
+    holder.innerHTML = '';
+    var rects = [[80, 1040], [1160, 320], [1520, 320]];
+    for (var c = 0; c < list.length; c++) {
+      var p = list[c], card = el('div', 'card news', holder);
+      card.style.left = rects[c][0] + 'px';
+      card.style.width = rects[c][1] + 'px';
+      var img = el('div', 'img', card);
+      img.style.backgroundImage = 'url(' + p.image + ')';
+      el('div', 'shade', img);
+      var chip = el('div', 'chip', img);
+      var logo = el('img', '', chip);
+      logo.src = 'logos/3cat.png';
+      if (c === 0) chip.appendChild(document.createTextNode('3Cat info · ' + z.name));
+      else { logo.style.marginRight = '0'; chip.style.padding = '0 10px'; }
+      var title = el('div', 'headline', img, p.title);
+      if (c > 0) title.style.fontSize = '26px';
+      if (c === 0 && p.lead) el('div', 'lead', img, p.lead);
+      if (p.at) el('div', 'when', img, ago(p.at));
+      hover(card, Z.CARDS, c);
+    }
+    st.card = Math.min(st.card, Math.max(0, list.length - 1));
+    if (!list.length && st.zone === Z.CARDS) st.zone = Z.SHELF;
+    backdrop(list.length ? list[0].image : '');
     updateFocus();
   }
 
@@ -668,14 +715,15 @@
   function activate() {
     switch (st.zone) {
       case Z.TOP:
-        if (st.top < 3) return;
-        if (st.top === 3) { var live = liveTV(); if (live) launcher(live.id, tr('TV aberta', 'Live TV', 'TV en vivo'))(); }
-        else if (st.top === 4) { st.zone = Z.SHELF; openDrawer(); st.drawer = 1 < drawerInputs ? 1 : 0; updateFocus(); }
+        if (st.top < tabCount()) return;
+        if (st.top === tabCount()) { var live = liveTV(); if (live) launcher(live.id, tr('TV aberta', 'Live TV', 'TV en vivo'))(); }
+        else if (st.top === tabCount() + 1) { st.zone = Z.SHELF; openDrawer(); st.drawer = 1 < drawerInputs ? 1 : 0; updateFocus(); }
         else openSettings();
         return;
       case Z.CARDS:
-        var p = cards[st.card], app = p && Data.appFor(p.app);
+        var p = cards[st.card], app = p && Data.appFor(p.link ? '3cat' : p.app);
         if (app) launcher(app.id, app.title)();
+        else if (p && p.link) toast(p.title);
         return;
       case Z.SHELF:
         if (shelf[st.shelf]) launcher(shelf[st.shelf].id, shelf[st.shelf].title)();
@@ -719,10 +767,10 @@
         break;
       case Z.TOP:
         if (dx) {
-          st.top = Math.max(0, Math.min(5, st.top + dx));
-          if (st.top < 3) selectTab(st.top);   // as on Apple TV: focusing a tab selects it
+          st.top = Math.max(0, Math.min(tabCount() + 2, st.top + dx));
+          if (st.top < tabCount()) selectTab(st.top);   // as on Apple TV: focusing a tab selects it
         } else if (dy > 0) {
-          if (cards.length) { st.zone = Z.CARDS; st.card = Math.min(cards.length - 1, st.top < 3 ? 0 : cards.length - 1); }
+          if (cards.length) { st.zone = Z.CARDS; st.card = Math.min(cards.length - 1, st.top < tabCount() ? 0 : cards.length - 1); }
           else st.zone = Z.SHELF;
         }
         break;
@@ -765,7 +813,7 @@
       if (zone !== Z.DRAWER && st.zone === Z.DRAWER && zone !== Z.SHELF) return;
       if (zone === Z.SHELF && st.zone === Z.DRAWER) closeDrawer();
       st.zone = zone;
-      if (zone === Z.TOP) { st.top = index; if (index < 3) selectTab(index); }
+      if (zone === Z.TOP) { st.top = index; if (index < tabCount()) selectTab(index); }
       else if (zone === Z.CARDS) st.card = index;
       else if (zone === Z.SHELF) st.shelf = index;
       else if (zone === Z.DRAWER) st.drawer = index;
