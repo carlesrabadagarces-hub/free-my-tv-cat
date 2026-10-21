@@ -9,6 +9,7 @@ import android.os.Looper;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.xmlpull.v1.XmlPullParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,6 +28,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,6 +48,8 @@ final class Recs {
         String kind;            // "movie" or "tv"
         String title, backdrop, meta = "", app, pkg;
         boolean detailed;
+        String imageUrl, lead, link;   // news only: photo to download, first line, story
+        long at;                        // news only: when it was published
     }
 
     interface Listener { void onRecs(); }
@@ -119,6 +124,10 @@ final class Recs {
     private volatile boolean light;     // light design: builds only the cards (all three tabs' cards fit in memory)
     private volatile long failedAt, keyStamp;
     private volatile String listLanguage = "";   // language used for the saved titles, genres and texts
+    private volatile List<Pick> news = new ArrayList<>();   // local news (3Cat info), for the desk in newsSavedDesk
+    private volatile String newsSavedDesk = "";
+    private volatile long newsAt, newsFailedAt;
+    private volatile boolean fetchingNews;
 
     private Recs(Context c) {
         context = c;
@@ -131,6 +140,13 @@ final class Recs {
             listAt = cache.getLong("listAt", 0);
             listLanguage = cache.getString("language", cache.getBoolean("english", false) ? "en" : "pt");
             keyStamp = cache.getLong("keyStamp", 0);
+        } catch (Exception ignored) {
+        }
+        try {
+            String saved = cache.getString("news", null);
+            if (saved != null) news = parseNews(new JSONArray(saved));
+            newsSavedDesk = cache.getString("newsDesk", "");
+            newsAt = cache.getLong("newsAt", 0);
         } catch (Exception ignored) {
         }
     }
@@ -182,6 +198,7 @@ final class Recs {
 
     /** This hour's 3, movies only ("movie") or shows only ("tv"); null = both (the home screen tabs). */
     List<Pick> now(String kind) {
+        if ("news".equals(kind)) return news();
         List<Pick> list = new ArrayList<>();
         if (!hasKey(context)) return list;    // no TMDB key: no recommendations
         Map<String, Boolean> have = new HashMap<>();   // one look per app, not per title (this runs every 15 s)
@@ -243,6 +260,7 @@ final class Recs {
 
     /** With a key: fetches the list if stale or the time of day (morning/afternoon/night) changed; then the details. */
     void refreshIfStale() {
+        refreshNews();
         if (!hasKey(context) || fetching) return;
         long now = System.currentTimeMillis();
         long stamp = sourceStamp();   // a new key, country or installed streaming-app set refetches
@@ -376,6 +394,169 @@ final class Recs {
 
     private void notifyListeners() {
         main.post(() -> { for (Listener l : new ArrayList<>(listeners)) l.onRecs(); });
+    }
+
+    // MARK: - Local news: 3Cat info's territorial desks (RSS), by the zone of the configured city
+
+    /** Desk, collection id in api.3cat.cat, and the desk's centre (latitude, longitude). */
+    private static final String[][] DESKS = {
+        {"Barcelona", "24790", "41.39", "2.17"}, {"Tarragona", "24791", "41.12", "1.25"}, {"Girona", "24792", "41.98", "2.82"},
+        {"Catalunya Central", "24793", "41.73", "1.83"}, {"Terres de l'Ebre", "24794", "40.81", "0.52"},
+        {"Ponent", "24795", "41.62", "0.62"}, {"Alt Pirineu", "24796", "42.35", "1.45"}, {"Aran", "24797", "42.70", "0.79"},
+        {"Penedès", "29010", "41.35", "1.70"},
+    };
+    private static final String NEWS_URL = "https://api.3cat.cat/noticies?_format=rss&origen=colleccio&items_pagina=12&sdom=img"
+            + "&version=2.0&cache=90&https=true&master=yes&perfils_extra=imatges_3catinfo&id=";
+    private static final String NEWS_ALL = "https://api.3cat.cat/noticies?_format=rss&origen=frontal&frontal=n324-portada-noticia"
+            + "&items_pagina=12&sdom=img&version=2.0&https=true&master=yes&perfils_extra=imatges_3catinfo";
+    private static final long NEWS_EVERY = 15 * 60_000L;
+    private static final Pattern IMG = Pattern.compile("<img[^>]+src=['\"]([^'\"]+)['\"]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LEAD = Pattern.compile("<p>(.*?)</p>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+
+    /** {name, feed URL} of the desk closest to the city (within 90 km); Catalonia's front page when the language is Catalan; else null. */
+    static String[] newsDesk() {
+        double lat, lon;
+        try {
+            lat = Double.parseDouble(Prefs.latitude().trim());
+            lon = Double.parseDouble(Prefs.longitude().trim());
+        } catch (NumberFormatException e) {
+            return Ui.ca ? new String[] {"Catalunya", NEWS_ALL} : null;
+        }
+        String[] best = null;
+        double bestD = 1e9;
+        for (String[] d : DESKS) {
+            double dy = (Double.parseDouble(d[2]) - lat) * 111, dx = (Double.parseDouble(d[3]) - lon) * 111 * Math.cos(Math.toRadians(lat));
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bestD) { bestD = dist; best = d; }
+        }
+        if (best != null && bestD <= 90) return new String[] {best[0], NEWS_URL + best[1]};
+        return Ui.ca ? new String[] {"Catalunya", NEWS_ALL} : null;
+    }
+
+    /** The newest three stories of this city's desk (what the News tab shows). */
+    List<Pick> news() {
+        String[] desk = newsDesk();
+        List<Pick> all = news;
+        if (desk == null || !desk[0].equals(newsSavedDesk) || all.isEmpty()) return new ArrayList<>();
+        return new ArrayList<>(all.subList(0, Math.min(3, all.size())));
+    }
+
+    /** The desk's name for the cards ("Girona"), or empty without news. */
+    String newsDeskName() {
+        return newsSavedDesk;
+    }
+
+    private void refreshNews() {
+        String[] desk = newsDesk();
+        if (desk == null || fetchingNews) return;
+        long now = System.currentTimeMillis(), age = now - newsAt, sinceFail = now - newsFailedAt;
+        if (desk[0].equals(newsSavedDesk) && age >= 0 && age < NEWS_EVERY && !news.isEmpty()) return;
+        if (newsFailedAt != 0 && sinceFail >= 0 && sinceFail < 5 * 60_000L) return;
+        fetchingNews = true;
+        io.execute(() -> {
+            try {
+                List<Pick> list = readNews(desk[1]);
+                if (!list.isEmpty()) {
+                    news = list;
+                    newsSavedDesk = desk[0];
+                    newsAt = System.currentTimeMillis();
+                    newsFailedAt = 0;
+                    saveNews();
+                }
+            } catch (Exception e) {
+                newsFailedAt = System.currentTimeMillis();
+                AppLog.w("news: " + e);
+            } finally {
+                fetchingNews = false;
+                notifyListeners();
+            }
+        });
+    }
+
+    private static List<Pick> readNews(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(15000);
+        List<Pick> out = new ArrayList<>();
+        try (InputStream in = c.getInputStream()) {
+            XmlPullParser xml = android.util.Xml.newPullParser();
+            xml.setInput(in, null);   // the feed says ISO-8859-1 in its prolog
+            java.text.SimpleDateFormat date = new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+            Pick p = null;
+            String tag = "";
+            for (int ev = xml.getEventType(); ev != XmlPullParser.END_DOCUMENT && out.size() < 12; ev = xml.next()) {
+                if (ev == XmlPullParser.START_TAG) {
+                    tag = xml.getName();
+                    if (tag.equals("item")) p = new Pick();
+                } else if (ev == XmlPullParser.TEXT || ev == XmlPullParser.CDSECT) {
+                    if (p == null) continue;
+                    String t = xml.getText();
+                    if (tag.equals("title")) p.title = (p.title == null ? "" : p.title) + t;
+                    else if (tag.equals("link")) p.link = (p.link == null ? "" : p.link) + t.trim();
+                    else if (tag.equals("pubDate")) {
+                        try { p.at = date.parse(t.trim()).getTime(); } catch (java.text.ParseException ignored) { }
+                    } else if (tag.equals("description")) {
+                        Matcher m = IMG.matcher(t);
+                        if (m.find()) p.imageUrl = m.group(1);
+                        m = LEAD.matcher(t);
+                        if (m.find()) p.lead = m.group(1).replaceAll("<[^>]+>", "").trim();
+                    }
+                } else if (ev == XmlPullParser.END_TAG) {
+                    if (xml.getName().equals("item") && p != null) {
+                        if (p.title != null && !p.title.trim().isEmpty() && p.imageUrl != null) {
+                            p.title = p.title.trim();
+                            p.kind = "news";
+                            p.detailed = true;
+                            p.backdrop = "n" + Integer.toHexString(p.imageUrl.hashCode()) + ".jpg";
+                            out.add(p);
+                        }
+                        p = null;
+                    }
+                    tag = "";
+                }
+            }
+        } finally {
+            c.disconnect();
+        }
+        return out;
+    }
+
+    private void saveNews() {
+        try {
+            JSONArray a = new JSONArray();
+            for (Pick p : news) {
+                a.put(new JSONObject().put("title", p.title).put("image", p.imageUrl).put("lead", p.lead == null ? "" : p.lead)
+                        .put("link", p.link == null ? "" : p.link).put("at", p.at));
+            }
+            cache.edit().putString("news", a.toString()).putString("newsDesk", newsSavedDesk).putLong("newsAt", newsAt).apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static List<Pick> parseNews(JSONArray a) {
+        List<Pick> out = new ArrayList<>();
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o == null) continue;
+            Pick p = new Pick();
+            p.kind = "news";
+            p.detailed = true;
+            p.title = o.optString("title");
+            p.imageUrl = o.optString("image");
+            p.lead = o.optString("lead");
+            p.link = o.optString("link");
+            p.at = o.optLong("at");
+            p.backdrop = "n" + Integer.toHexString(p.imageUrl.hashCode()) + ".jpg";
+            out.add(p);
+        }
+        return out;
+    }
+
+    /** "3 h ago" for a story: minutes or hours, in the app's language. */
+    static String ago(long at) {
+        long minutes = Math.max(1, (System.currentTimeMillis() - at) / 60_000);
+        String t = minutes < 60 ? minutes + " min" : Math.min(99, minutes / 60) + " h";
+        return Ui.tr("há " + t, t + " ago", "hace " + t);
     }
 
     // MARK: - TMDB
@@ -629,7 +810,7 @@ final class Recs {
         //noinspection ResultOfMethodCallIgnored
         f.getParentFile().mkdirs();
         File part = new File(f.getPath() + ".part");
-        HttpURLConnection c = (HttpURLConnection) new URL(IMAGES + p.backdrop).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(p.imageUrl != null ? p.imageUrl : IMAGES + p.backdrop).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(20000);
         try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
@@ -669,7 +850,7 @@ final class Recs {
             if (forLight != light) return;   // the design changed midway: this one is stale
             synchronized (images) {
                 images.put(p.backdrop, backdrop);
-                while (images.size() > (forLight ? 10 : 4)) images.remove(images.keySet().iterator().next());
+                while (images.size() > (forLight ? 13 : 4)) images.remove(images.keySet().iterator().next());
             }
             notifyListeners();
         } catch (IOException | RuntimeException | OutOfMemoryError e) {

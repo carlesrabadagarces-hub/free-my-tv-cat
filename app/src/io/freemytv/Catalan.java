@@ -80,6 +80,7 @@ final class Catalan {
             case "Connecting…": return "Connectant…";
             case "Accept “Allow USB debugging?” on the TV (tick “Always allow”).": return "Accepta «Vols permetre la depuració USB?» al televisor (marca «Permet sempre»).";
             case "Free My TV's home screen ran into a problem.\nGoing back to the TV's original home screen…": return "La pantalla d'inici de Free My TV ha tingut un problema.\nTornant a la pantalla original del televisor…";
+            case "News": return "Notícies";
             case "Language": return "Idioma";
             case "Temperature": return "Temperatura";
             case "Theme": return "Tema";

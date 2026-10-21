@@ -848,6 +848,11 @@ final class HomeApps {
 
     /** Official logo (tools/logos.py): trims the transparent margins and scales it down to at most 512 px. */
     /** The bundled logo, read once per process: reading it again on every load made a new image and filled caches. */
+    /** An official mark that ships with the app (assets/logos/<key>.png), or null. */
+    static Bitmap logo(Context c, String key) {
+        return ownLogoCached(c, key);
+    }
+
     private static Bitmap ownLogoCached(Context c, String key) {
         synchronized (LOGOS) {
             if (LOGOS.containsKey("own:" + key)) return LOGOS.get("own:" + key);
